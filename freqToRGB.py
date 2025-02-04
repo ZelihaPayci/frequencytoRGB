@@ -7,52 +7,46 @@ import os
 import random
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
 song_path = os.getenv("songPath")
 
-# Set FFmpeg paths
-ffmpeg_path = "C:\\Users\\ZPAYCI21\\Downloads\\ffmpeg-master-latest-win64-gpl-shared\\ffmpeg-master-latest-win64-gpl-shared\\bin\\ffmpeg.exe"
-ffprobe_path = "C:\\Users\\ZPAYCI21\\Downloads\\ffmpeg-master-latest-win64-gpl-shared\\ffmpeg-master-latest-win64-gpl-shared\\bin\\ffprobe.exe"
+ffmpeg_path = "C:\\Users\\ZPAYCI21\\Downloads\\ffmpeg-master-latest-win64-gpl-shared\\bin\\ffmpeg.exe"
+ffprobe_path = "C:\\Users\\ZPAYCI21\\Downloads\\ffmpeg-master-latest-win64-gpl-shared\\bin\\ffprobe.exe"
 
 AudioSegment.ffmpeg = which(ffmpeg_path)
 AudioSegment.ffprobe = which(ffprobe_path)
 
-# Load and process audio
 song = AudioSegment.from_mp3(song_path)
 samples = np.array(song.get_array_of_samples(), dtype=np.float32)
 sample_rate = song.frame_rate
 
-# Normalize samples (for better visualization)
 samples /= np.max(np.abs(samples))
 
-# Pygame setup
 pygame.init()
 WIDTH, HEIGHT = 800, 600
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 clock = pygame.time.Clock()
 
-# 🎵 Start playing the song
 pygame.mixer.init()
 pygame.mixer.music.load(song_path)
 pygame.mixer.music.play()
 
+is_paused = False
+current_position = 0
+
 def normalize_frequency(freq_data):
-    """ Normalize frequency data dynamically to avoid dominant red. """
-    freq_data = np.abs(freq_data) ** 1.2  # Reduce extreme values
+    freq_data = np.abs(freq_data) ** 1.2
     min_val, max_val = np.percentile(freq_data, 5), np.percentile(freq_data, 90)
     freq_data = np.clip((freq_data - min_val) / (max_val - min_val), 0, 1) * 255
     return freq_data
 
 def freq_to_rgb(freq_data):
-    """ Improved color mapping for vibrant and varied colors """
     freq_data = normalize_frequency(freq_data)
 
-    bass = np.mean(freq_data[:80])  # Bass (Red)
-    mids = np.mean(freq_data[80:500])  # Mids (Green)
-    highs = np.mean(freq_data[500:])  # Highs (Blue)
+    bass = np.mean(freq_data[:80])
+    mids = np.mean(freq_data[80:500])
+    highs = np.mean(freq_data[500:])
 
-    # Normalize all values
     total = bass + mids + highs
     if total == 0:
         return (0, 0, 0)
@@ -64,7 +58,6 @@ def freq_to_rgb(freq_data):
     return (red, green, blue)
 
 class Particle:
-    """ Sparkling effect around the waves """
     def __init__(self, x, y, color):
         self.x = x
         self.y = y
@@ -76,7 +69,7 @@ class Particle:
     def update(self):
         self.x += self.velocity[0]
         self.y += self.velocity[1]
-        self.size *= 0.95  # Shrink over time
+        self.size *= 0.95
         self.life -= 1
 
     def draw(self, surface):
@@ -86,10 +79,9 @@ class Particle:
 particles = []
 
 def draw_waveform(sample_chunk, color):
-    """ Draw a vibrant, colored waveform with a sparkling effect """
-    screen.fill((0, 0, 0))  # Black background
+    screen.fill((0, 0, 0))
     num_points = len(sample_chunk)
-    x_step = WIDTH / num_points  # Spacing between points
+    x_step = WIDTH / num_points
     center_y = HEIGHT // 2
 
     points = []
@@ -98,14 +90,11 @@ def draw_waveform(sample_chunk, color):
         y = int(center_y + sample_chunk[i] * (HEIGHT // 3))
         points.append((x, y))
 
-        # Add some sparkle effect (random chance)
         if random.random() < 0.02:
             particles.append(Particle(x, y, color))
 
-    # Draw the waveform using connected lines
     pygame.draw.lines(screen, color, False, points, 2)
 
-    # Draw the particles
     for particle in particles[:]:
         particle.update()
         particle.draw(screen)
@@ -114,23 +103,32 @@ def draw_waveform(sample_chunk, color):
 
     pygame.display.flip()
 
-# 🎨 Main visualization loop
-for i in range(0, len(samples), 2048):
-    sample_chunk = samples[i:i + 2048]
-    fft_data = fft(sample_chunk)
-    freq_data = np.abs(fft_data)
+running = True
+while running:
+    for i in range(current_position, len(samples), 2048):
+        sample_chunk = samples[i:i + 2048]
+        fft_data = fft(sample_chunk)
+        freq_data = np.abs(fft_data)
 
-    color = freq_to_rgb(freq_data)
-    draw_waveform(sample_chunk, color)
+        color = freq_to_rgb(freq_data)
+        draw_waveform(sample_chunk, color)
 
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            pygame.mixer.music.stop()
-            pygame.quit()
-            exit()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.mixer.music.stop()
+                running = False
+                pygame.quit()
+                exit()
 
-    clock.tick(30)
+        if not pygame.mixer.music.get_busy():
+            running = False
+            break
 
-# Keep running until song ends
-while pygame.mixer.music.get_busy():
+        clock.tick(30)
+
+    if pygame.mixer.music.get_busy():
+        current_position = pygame.mixer.music.get_pos() / 1000
+
     pygame.time.Clock().tick(10)
+
+pygame.quit()
