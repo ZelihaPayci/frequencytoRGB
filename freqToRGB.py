@@ -6,12 +6,13 @@ from pydub.utils import which
 import os
 import random
 from dotenv import load_dotenv
+from particle import Particle
 
 load_dotenv()
 song_path = os.getenv("songPath")
 
-ffmpeg_path = "C:\\Users\\ZPAYCI21\\Downloads\\ffmpeg-master-latest-win64-gpl-shared\\bin\\ffmpeg.exe"
-ffprobe_path = "C:\\Users\\ZPAYCI21\\Downloads\\ffmpeg-master-latest-win64-gpl-shared\\bin\\ffprobe.exe"
+ffmpeg_path = os.getenv("ffmpeg_path")
+ffprobe_path = os.getenv("ffprobe_path")
 
 AudioSegment.ffmpeg = which(ffmpeg_path)
 AudioSegment.ffprobe = which(ffprobe_path)
@@ -56,25 +57,6 @@ def freq_to_rgb(freq_data):
     blue = int((highs / total) * 255)
 
     return (red, green, blue)
-
-class Particle:
-    def __init__(self, x, y, color):
-        self.x = x
-        self.y = y
-        self.color = color
-        self.size = random.randint(2, 6)
-        self.life = random.randint(10, 30)
-        self.velocity = [random.uniform(-1, 1), random.uniform(-1, 1)]
-
-    def update(self):
-        self.x += self.velocity[0]
-        self.y += self.velocity[1]
-        self.size *= 0.95
-        self.life -= 1
-
-    def draw(self, surface):
-        if self.life > 0:
-            pygame.draw.circle(surface, self.color, (int(self.x), int(self.y)), max(1, int(self.size)))
 
 particles = []
 
