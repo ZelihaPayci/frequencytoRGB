@@ -35,26 +35,57 @@ pygame.mixer.music.play()
 is_paused = False
 current_position = 0
 
+
 def normalize_frequency(freq_data):
-    freq_data = np.abs(freq_data) ** 1.2
-    min_val, max_val = np.percentile(freq_data, 5), np.percentile(freq_data, 90)
-    freq_data = np.clip((freq_data - min_val) / (max_val - min_val), 0, 1) * 255
+    """Normalize the frequency data to the range of 0-255 for better visualization."""
+    freq_data = np.nan_to_num(freq_data, nan=0, posinf=0, neginf=0)
+
+    # Apply a logarithmic scale to better capture the lower frequencies
+    freq_data = np.abs(freq_data) ** 0.8  # Stretch frequencies for better color mapping
+
+    # Normalize based on the max value
+    max_val = np.max(freq_data)
+    min_val = np.min(freq_data)
+
+    # Avoid division by zero and scale to 0-255 range
+    if max_val - min_val > 0:
+        freq_data = (freq_data - min_val) / (max_val - min_val) * 255
+    else:
+        freq_data = np.zeros_like(freq_data)
+
     return freq_data
 
+
 def freq_to_rgb(freq_data):
+    """Convert frequency data to RGB color based on bass, mids, and highs."""
     freq_data = normalize_frequency(freq_data)
 
-    bass = np.mean(freq_data[:80])
-    mids = np.mean(freq_data[80:500])
-    highs = np.mean(freq_data[500:])
-
-    total = bass + mids + highs
-    if total == 0:
+    if np.all(freq_data == 0):  # In case all frequencies are zero, return black
         return (0, 0, 0)
 
+    # Define frequency bands for bass, mids, and highs
+    bass = np.mean(freq_data[:150])  # Low frequencies (bass up to 150 Hz)
+    mids = np.mean(freq_data[150:1000])  # Mid frequencies (from 150 Hz to 1 kHz)
+    highs = np.mean(freq_data[1000:])  # High frequencies (from 1 kHz upwards)
+
+    # We can use a threshold for each range to prevent one band from dominating
+    total = bass + mids + highs
+    if total == 0:
+        return (0, 0, 0)  # If all frequencies are zero, return black
+
+    # Calculate the RGB components, based on their respective frequency ranges
     red = int((bass / total) * 255)
     green = int((mids / total) * 255)
     blue = int((highs / total) * 255)
+
+    # To add more dynamic range, let's tweak how we calculate these components:
+    # We will apply a scaling to `highs` for better balance across frequency bands.
+    blue = int(min(max(blue * 1.2, 0), 255))  # Increase blue intensity for high frequencies
+
+    # Ensure that the values are bounded between 0 and 255
+    red = min(max(red, 0), 255)
+    green = min(max(green, 0), 255)
+    blue = min(max(blue, 0), 255)
 
     return (red, green, blue)
 
